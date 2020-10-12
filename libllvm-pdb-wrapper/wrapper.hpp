@@ -35,4 +35,6 @@ EXPORT uint32_t PDB_File_Field_List_Finalize(void* Instance, void* CRBInstance);
 EXPORT uint32_t PDB_File_Create_Struct(void *Instance, const char *Name, uint32_t Fields, uint16_t FieldCount, uint64_t Size);
 EXPORT uint32_t PDB_File_Add_Func_Data(void* Instance, const char* Name, uint32_t ReturnType, const uint32_t* Args, size_t ArgCount, uint8_t CConv, int IsConstructor);
 EXPORT uint32_t PDB_File_Add_Pointer(void* Instance, uint32_t Type);
+EXPORT uint32_t PDB_File_Add_Array(void* Instance, uint32_t Type, uint64_t Size);
+EXPORT void PDB_File_Add_Typed_Function(void *Instance, const char *Name, uint16_t SectionIndex, uint32_t SectionOffset, uint32_t Type);
 #endif //LLVM_PDB_WRAPPER_WRAPPER_HPP

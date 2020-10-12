@@ -1,6 +1,5 @@
 use cmake::Config;
-use std::env;
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 
 fn main() {
     let dst = Config::new("libllvm-pdb-wrapper").build();
@@ -12,6 +11,7 @@ fn main() {
     println!("cargo:rustc-link-lib=stdc++");
 
     println!("cargo:rerun-if-changed=libllvm-pdb-wrapper/wrapper.hpp");
+    println!("cargo:rerun-if-changed=libllvm-pdb-wrapper/wrapper.cpp");
     println!("cargo:rerun-if-changed={}", dst.display());
     let bindings = bindgen::Builder::default()
         // The input header we would like to generate

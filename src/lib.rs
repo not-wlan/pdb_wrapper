@@ -7,6 +7,7 @@ mod pdb_wrapper;
 use crate::pdb_meta::SimpleTypeKind;
 use crate::pdb_wrapper::*;
 use std::hash::{Hash, Hasher};
+use std::io::Write;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -27,12 +28,14 @@ pub enum PDBType {
     Pointer(Box<PDBType>),
     SimpleType(SimpleTypeKind),
     Struct(String),
+    ConstantArray(Box<PDBType>, usize),
 }
 
+#[derive(Debug)]
 pub struct StructField {
-    ty: PDBType,
-    name: String,
-    offset: u64,
+    pub ty: PDBType,
+    pub name: String,
+    pub offset: u64,
 }
 
 impl Eq for PDBType {}
@@ -50,6 +53,10 @@ impl Hash for PDBType {
             }
             PDBType::Struct(name) => {
                 name.hash(state);
+            }
+            PDBType::ConstantArray(array, size) => {
+                (**array).hash(state);
+                size.hash(state);
             }
         };
     }
@@ -118,11 +125,28 @@ impl PDB {
         section_index: u16,
         section_rva: u32,
         name: &str,
+        ty: Option<u32>,
     ) -> Result<(), Error> {
         let raw_name = CString::new(name)?;
+
         unsafe {
-            PDB_File_Add_Function(self.handle, raw_name.as_ptr(), section_index, section_rva)
-        };
+            match ty {
+                None => PDB_File_Add_Function(
+                    self.handle,
+                    raw_name.as_ptr(),
+                    section_index,
+                    section_rva,
+                ),
+                Some(ty) => PDB_File_Add_Typed_Function(
+                    self.handle,
+                    raw_name.as_ptr(),
+                    section_index,
+                    section_rva,
+                    ty,
+                ),
+            }
+        }
+
         Ok(())
     }
 
@@ -147,26 +171,31 @@ impl PDB {
     }
 
     fn create_type(&mut self, ty: &PDBType) -> Result<u32, Error> {
-        if let PDBType::Pointer(inner) = ty {
-            let type_index = match inner.as_ref() {
-                PDBType::SimpleType(ty) => Ok(*ty as u32),
-                PDBType::Pointer(ptr) if self.is_existing_type(ptr.as_ref()) => Ok(self
-                    .get_existing_type(ptr.as_ref())
-                    .expect("Inconsistent types, this is a bug!")),
-                PDBType::Struct(name) => self
-                    .get_existing_type(inner.as_ref())
-                    .ok_or(Error::UnknownType { ty: name.clone() }),
-                PDBType::Pointer(_) => {
-                    unimplemented!("Nested pointer type generation isn't supported yet!")
-                }
-            }?;
+        match ty {
+            PDBType::Pointer(inner) => {
+                let type_index = match inner.as_ref() {
+                    PDBType::SimpleType(ty) => Ok(*ty as u32),
+                    PDBType::Pointer(ptr) if self.is_existing_type(inner.as_ref()) => Ok(self
+                        .get_existing_type(ptr.as_ref())
+                        .expect("Inconsistent types, this is a bug!")),
+                    PDBType::Struct(name) => self
+                        .get_existing_type(inner.as_ref())
+                        .ok_or(Error::UnknownType { ty: name.clone() }),
+                    PDBType::Pointer(_) => self.get_or_create_type(inner),
+                    PDBType::ConstantArray(_, _) => {
+                        unimplemented!("Pointer to array isn't supported yet!");
+                    }
+                }?;
 
-            let new_type = unsafe { PDB_File_Add_Pointer(self.handle, type_index) };
-            self.types.insert(ty.clone(), new_type);
-            Ok(new_type)
-        } else {
-            // There's no need to redefine simple types and structs can't be created here.
-            return Err(Error::BadType);
+                let new_type = unsafe { PDB_File_Add_Pointer(self.handle, type_index) };
+                self.types.insert(ty.clone(), new_type);
+                Ok(new_type)
+            }
+            PDBType::ConstantArray(array, size) => {
+                let ty = self.get_or_create_type(array.as_ref())?;
+                return Ok(unsafe { PDB_File_Add_Array(self.handle, ty, *size as u64) });
+            }
+            _ => Err(Error::BadType),
         }
     }
 
@@ -185,7 +214,7 @@ impl PDB {
         is_constructor: bool,
         cconv: pdb_meta::CallingConvention,
         name: &str,
-    ) -> Result<(), Error> {
+    ) -> Result<u32, Error> {
         let raw_name = CString::new(name)?;
 
         let return_type = self.get_or_create_type(return_type)?;
@@ -195,8 +224,7 @@ impl PDB {
             .map(|ty| self.get_or_create_type(ty))
             .collect::<Result<Vec<_>, Error>>()?;
 
-        // TODO: This returns the created FUNC_ID TypeIndex. We could return that but I don't quite see the point...
-        unsafe {
+        Ok(unsafe {
             PDB_File_Add_Func_Data(
                 self.handle,
                 raw_name.as_ptr(),
@@ -205,10 +233,8 @@ impl PDB {
                 args.len() as u64,
                 cconv as u8,
                 if is_constructor { 1 } else { 0 },
-            );
-        }
-
-        Ok(())
+            )
+        })
     }
 
     pub fn insert_struct(
@@ -220,6 +246,7 @@ impl PDB {
         let field_list = unsafe { PDB_File_Field_List_Create() };
         let raw_name = CString::new(name)?;
 
+        std::io::stdout().flush().unwrap();
         for field in fields {
             let ty = self.get_or_create_type(&field.ty)?;
             let raw_name = CString::new(field.name.as_str())?;
