@@ -4,7 +4,7 @@ use std::ffi::{c_void, CString, NulError};
 
 pub mod pdb_meta;
 mod pdb_wrapper;
-use crate::pdb_meta::SimpleTypeKind;
+use crate::pdb_meta::{CallingConvention, SimpleTypeKind};
 use crate::pdb_wrapper::*;
 use std::hash::{Hash, Hasher};
 use std::io::Write;
@@ -18,7 +18,7 @@ pub enum Error {
     ))]
     LLVMError,
     #[snafu(display("Tried to create a complex type!"))]
-    BadType,
+    BadType { ty: String },
     #[snafu(display("Unknown type {} was used!", ty))]
     UnknownType { ty: String },
 }
@@ -29,6 +29,11 @@ pub enum PDBType {
     SimpleType(SimpleTypeKind),
     Struct(String),
     ConstantArray(Box<PDBType>, usize),
+    FunctionPointer {
+        ret: Box<PDBType>,
+        args: Vec<PDBType>,
+        cconv: CallingConvention,
+    },
 }
 
 #[derive(Debug)]
@@ -57,6 +62,11 @@ impl Hash for PDBType {
             PDBType::ConstantArray(array, size) => {
                 (**array).hash(state);
                 size.hash(state);
+            }
+            PDBType::FunctionPointer { ret, args, cconv } => {
+                (**ret).hash(state);
+                args.hash(state);
+                cconv.hash(state);
             }
         };
     }
@@ -114,9 +124,24 @@ impl PDB {
         name: &str,
         section_index: u16,
         section_rva: u32,
+        ty: Option<PDBType>,
     ) -> Result<(), Error> {
         let name = CString::new(name)?;
-        unsafe { PDB_File_Add_Global(self.handle, name.as_ptr(), section_index, section_rva) }
+        if let Some(ty) = ty {
+            let ty = self.get_or_create_type(&ty)?;
+            unsafe {
+                PDB_File_Add_Typed_Global(
+                    self.handle,
+                    name.as_ptr(),
+                    section_index,
+                    section_rva,
+                    ty,
+                )
+            }
+        } else {
+            unsafe { PDB_File_Add_Global(self.handle, name.as_ptr(), section_index, section_rva) }
+        }
+
         Ok(())
     }
 
@@ -185,6 +210,9 @@ impl PDB {
                     PDBType::ConstantArray(_, _) => {
                         unimplemented!("Pointer to array isn't supported yet!");
                     }
+                    PDBType::FunctionPointer { .. } => {
+                        unimplemented!("Pointer to function pointer isn't supported yet!");
+                    }
                 }?;
 
                 let new_type = unsafe { PDB_File_Add_Pointer(self.handle, type_index) };
@@ -195,7 +223,15 @@ impl PDB {
                 let ty = self.get_or_create_type(array.as_ref())?;
                 return Ok(unsafe { PDB_File_Add_Array(self.handle, ty, *size as u64) });
             }
-            _ => Err(Error::BadType),
+            PDBType::FunctionPointer { ret, args, cconv } => {
+                let func = self.insert_function_metadata(ret, &args, false, *cconv, "")?;
+                let new_type = unsafe { PDB_File_Add_Pointer(self.handle, func) };
+                self.types.insert(ty.clone(), new_type);
+                Ok(new_type)
+            }
+            _ => Err(Error::BadType {
+                ty: format!("{:?}", ty),
+            }),
         }
     }
 
@@ -294,7 +330,7 @@ mod tests {
         basedir.push("HelloWorld.exe");
 
         let mut pdb = PDB::new(false).expect("Failed to create PDB instance.");
-        pdb.insert_global("TestSymbol", 1, 0x1337)
+        pdb.insert_global("TestSymbol", 1, 0x1337, None)
             .expect("Failed to add symbol.");
 
         let pdbdir = format!("{}.pdb", basedir.as_path().to_string_lossy());

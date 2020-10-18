@@ -37,4 +37,5 @@ EXPORT uint32_t PDB_File_Add_Func_Data(void* Instance, const char* Name, uint32_
 EXPORT uint32_t PDB_File_Add_Pointer(void* Instance, uint32_t Type);
 EXPORT uint32_t PDB_File_Add_Array(void* Instance, uint32_t Type, uint64_t Size);
 EXPORT void PDB_File_Add_Typed_Function(void *Instance, const char *Name, uint16_t SectionIndex, uint32_t SectionOffset, uint32_t Type);
+EXPORT void PDB_File_Add_Typed_Global(void *Instance, const char *Name, uint16_t SectionIndex, uint32_t SectionOffset, uint32_t TypeIndex);
 #endif //LLVM_PDB_WRAPPER_WRAPPER_HPP
