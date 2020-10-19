@@ -7,7 +7,7 @@ fn main() {
     println!("cargo:rustc-link-lib=static=llvm-pdb-wrapper");
 
     println!("cargo:rustc-link-lib=llvm-pdb-wrapper");
-    println!("cargo:rustc-link-lib=LLVM");
+    println!("cargo:rustc-link-lib=LLVM-10");
     println!("cargo:rustc-link-lib=stdc++");
 
     println!("cargo:rerun-if-changed=libllvm-pdb-wrapper/wrapper.hpp");
