@@ -24,16 +24,19 @@ pub enum Error {
 }
 
 #[derive(Debug, Clone)]
+pub struct PDBFunction {
+    ret: Box<PDBType>,
+    args: Vec<PDBType>,
+    cconv: CallingConvention,
+}
+
+#[derive(Debug, Clone)]
 pub enum PDBType {
     Pointer(Box<PDBType>),
     SimpleType(SimpleTypeKind),
     Struct(String),
     ConstantArray(Box<PDBType>, usize),
-    FunctionPointer {
-        ret: Box<PDBType>,
-        args: Vec<PDBType>,
-        cconv: CallingConvention,
-    },
+    Function(PDBFunction),
 }
 
 #[derive(Debug)]
@@ -44,6 +47,24 @@ pub struct StructField {
 }
 
 impl Eq for PDBType {}
+
+impl Hash for PDBFunction {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.ret.hash(state);
+        self.args.hash(state);
+        self.cconv.hash(state);
+    }
+}
+
+impl PDBFunction {
+    pub fn new(ret: PDBType, args: &[PDBType], cconv: CallingConvention) -> Self {
+        PDBFunction {
+            ret: Box::new(ret),
+            args: args.to_vec(),
+            cconv,
+        }
+    }
+}
 
 impl Hash for PDBType {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -63,10 +84,8 @@ impl Hash for PDBType {
                 (**array).hash(state);
                 size.hash(state);
             }
-            PDBType::FunctionPointer { ret, args, cconv } => {
-                (**ret).hash(state);
-                args.hash(state);
-                cconv.hash(state);
+            PDBType::Function(func) => {
+                func.hash(state);
             }
         };
     }
@@ -124,7 +143,7 @@ impl PDB {
         name: &str,
         section_index: u16,
         section_rva: u32,
-        ty: Option<PDBType>,
+        ty: Option<&PDBType>,
     ) -> Result<(), Error> {
         let name = CString::new(name)?;
         if let Some(ty) = ty {
@@ -206,13 +225,10 @@ impl PDB {
                     PDBType::Struct(name) => self
                         .get_existing_type(inner.as_ref())
                         .ok_or(Error::UnknownType { ty: name.clone() }),
-                    PDBType::Pointer(_) => self.get_or_create_type(inner),
                     PDBType::ConstantArray(_, _) => {
                         unimplemented!("Pointer to array isn't supported yet!");
                     }
-                    PDBType::FunctionPointer { .. } => {
-                        unimplemented!("Pointer to function pointer isn't supported yet!");
-                    }
+                    PDBType::Function(_) | PDBType::Pointer(_) => self.get_or_create_type(inner),
                 }?;
 
                 let new_type = unsafe { PDB_File_Add_Pointer(self.handle, type_index) };
@@ -223,12 +239,7 @@ impl PDB {
                 let ty = self.get_or_create_type(array.as_ref())?;
                 return Ok(unsafe { PDB_File_Add_Array(self.handle, ty, *size as u64) });
             }
-            PDBType::FunctionPointer { ret, args, cconv } => {
-                let func = self.insert_function_metadata(ret, &args, false, *cconv, "")?;
-                let new_type = unsafe { PDB_File_Add_Pointer(self.handle, func) };
-                self.types.insert(ty.clone(), new_type);
-                Ok(new_type)
-            }
+            PDBType::Function(func) => self.insert_function_metadata(func, ""),
             _ => Err(Error::BadType {
                 ty: format!("{:?}", ty),
             }),
@@ -245,17 +256,15 @@ impl PDB {
 
     pub fn insert_function_metadata(
         &mut self,
-        return_type: &PDBType,
-        args: &[PDBType],
-        is_constructor: bool,
-        cconv: pdb_meta::CallingConvention,
+        meta: &PDBFunction,
         name: &str,
     ) -> Result<u32, Error> {
         let raw_name = CString::new(name)?;
 
-        let return_type = self.get_or_create_type(return_type)?;
+        let return_type = self.get_or_create_type(&meta.ret)?;
 
-        let args = args
+        let args = meta
+            .args
             .iter()
             .map(|ty| self.get_or_create_type(ty))
             .collect::<Result<Vec<_>, Error>>()?;
@@ -267,8 +276,8 @@ impl PDB {
                 return_type,
                 args.as_ptr(),
                 args.len() as u64,
-                cconv as u8,
-                if is_constructor { 1 } else { 0 },
+                meta.cconv as u8,
+                0,
             )
         })
     }
