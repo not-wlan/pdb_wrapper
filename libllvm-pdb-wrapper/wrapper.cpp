@@ -25,6 +25,9 @@ class pdb_file {
     std::unique_ptr<llvm::pdb::PDBFileBuilder> m_pdb_builder;
     std::unique_ptr<AppendingTypeTableBuilder> m_type_builder;
     std::unique_ptr<AppendingTypeTableBuilder> m_id_builder;
+#ifdef LLVM_NEWER
+    std::vector<llvm::pdb::BulkPublic> m_PublicsSyms;
+#endif
     bool m_64_bit{};
 public:
     pdb_file();
@@ -63,6 +66,7 @@ public:
 
     std::unique_ptr<llvm::BumpPtrAllocator> m_allocator;
 
+    void finalize_public_symbols();
 };
 
 pdb_file::pdb_file() {
@@ -70,6 +74,9 @@ pdb_file::pdb_file() {
     m_pdb_builder = std::make_unique<llvm::pdb::PDBFileBuilder>(*m_allocator);
     m_type_builder = std::make_unique<AppendingTypeTableBuilder>(*m_allocator);
     m_id_builder = std::make_unique<AppendingTypeTableBuilder>(*m_allocator);
+#ifdef LLVM_NEWER
+    m_PublicsSyms = std::vector<llvm::pdb::BulkPublic>();
+#endif
 }
 
 bool pdb_file::initialize(bool is_64bit) {
@@ -134,8 +141,12 @@ bool pdb_file::commit(const char *InputPath, const char *OutputPath) {
     auto sections = llvm::ArrayRef<llvm::object::coff_section>(section_table, section_count);
 
     // Add Section Map stream.
+#ifdef LLVM_NEWER
+    DbiBuilder.createSectionMap(sections);
+#else
     auto sectionMap = llvm::pdb::DbiStreamBuilder::createSectionMap(sections);
     DbiBuilder.setSectionMap(sectionMap);
+#endif
 
     auto raw_sections_table = llvm::ArrayRef<uint8_t>(reinterpret_cast<const uint8_t *>(sections.begin()),
                                                       reinterpret_cast<const uint8_t *>(sections.end()));
@@ -189,14 +200,26 @@ pdb_file::add_function_symbol(const char *name, uint16_t section_index, uint32_t
 
 void pdb_file::add_function_symbol(const char *name, uint16_t section_index, uint32_t section_offset) {
     auto &GsiBuilder = m_pdb_builder->getGsiBuilder();
+#ifdef LLVM_NEWER
+    auto symbol = llvm::pdb::BulkPublic();
+#else
     auto symbol = PublicSym32(SymbolKind::S_PUB32);
+#endif
 
     symbol.Name = name;
+#ifdef LLVM_NEWER
+    symbol.Flags |= static_cast<uint16_t>(PublicSymFlags::Function);
+#else
     symbol.Flags |= PublicSymFlags::Function;
+#endif
+
     symbol.Segment = section_index;
     symbol.Offset = section_offset;
-
+#ifdef LLVM_NEWER
+    m_PublicsSyms.push_back(symbol);
+#else
     GsiBuilder.addPublicSymbol(symbol);
+#endif
 }
 
 void pdb_file::add_global_symbol(const char *name, uint16_t section_index, uint32_t section_offset, TypeIndex typeIndex) {
@@ -219,16 +242,28 @@ void pdb_file::add_global_symbol(const char *name, uint16_t section_index, uint3
 
 void pdb_file::add_global_symbol(const char *name, uint16_t section_index, uint32_t section_offset) {
     auto &GsiBuilder = m_pdb_builder->getGsiBuilder();
+#ifdef LLVM_NEWER
+    auto symbol = llvm::pdb::BulkPublic();
+#else
     auto symbol = PublicSym32(SymbolKind::S_PUB32);
-
+#endif
     symbol.Name = name;
     symbol.Segment = section_index;
     symbol.Offset = section_offset;
+#ifdef LLVM_NEWER
+    symbol.Flags |= static_cast<uint16_t>(PublicSymFlags::Function | PublicSymFlags::Code);
+    m_PublicsSyms.push_back(symbol);
+#else
     symbol.Flags |= PublicSymFlags::Function | PublicSymFlags::Code;
-
     GsiBuilder.addPublicSymbol(symbol);
+#endif
 }
-
+#ifdef LLVM_NEWER
+void pdb_file::finalize_public_symbols() {
+    auto &GsiBuilder = m_pdb_builder->getGsiBuilder();
+    GsiBuilder.addPublicSymbols(std::move(m_PublicsSyms));
+}
+#endif
 ContinuationRecordBuilder *pdb_file::create_field_list() {
     auto contBuilder = new ContinuationRecordBuilder();
     contBuilder->begin(ContinuationRecordKind::FieldList);
@@ -333,6 +368,9 @@ EXPORT void PDB_File_Destroy(void *Instance) {
 
 EXPORT int PDB_File_Commit(void *Instance, const char *InputPath, const char *OutputPath) {
     auto pdb = (pdb_file *) Instance;
+#ifdef NEWER_LLVM
+    pdb->finalize_public_symbols();
+#endif
     return +pdb->commit(InputPath, OutputPath);
 }
 

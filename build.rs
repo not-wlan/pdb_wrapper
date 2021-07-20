@@ -2,17 +2,44 @@ use cmake::Config;
 use std::{env, path::PathBuf};
 
 fn main() {
-    let dst = Config::new("libllvm-pdb-wrapper").build();
-    println!("cargo:rustc-link-search=native={}", dst.display());
-    println!("cargo:rustc-link-lib=static=llvm-pdb-wrapper");
+    println!("Remember to set the LIBCLANG_PATH and/or LLVM_DIR if needed");
+    if std::env::var_os("CARGO_FEATURE_LLVM_13").is_some() {
+        println!("specialbuold");
+        let dst = Config::new("libllvm-pdb-wrapper")
+            .define("LLVM_NEWER", "ON")
+            .build();
+        println!("cargo:rustc-link-search=native={}", dst.display());
+        println!("cargo:rerun-if-changed={}", dst.display());
+    } else {
+        let dst = Config::new("libllvm-pdb-wrapper").build();
+        println!("cargo:rustc-link-search=native={}", dst.display());
+        println!("cargo:rerun-if-changed={}", dst.display());
+    }
 
+    println!("cargo:rustc-link-lib=static=llvm-pdb-wrapper");
     println!("cargo:rustc-link-lib=llvm-pdb-wrapper");
-    println!("cargo:rustc-link-lib=LLVM-10");
-    println!("cargo:rustc-link-lib=stdc++");
+    if std::env::var_os("CARGO_FEATURE_LLVM_13").is_some() {
+        println!("cargo:rustc-link-lib=LLVMDebugInfoCodeView");
+        println!("cargo:rustc-link-lib=LLVMDebugInfoPDB");
+        println!("cargo:rustc-link-lib=LLVMDebugInfoMSF");
+        println!("cargo:rustc-link-lib=LLVMMC");
+        println!("cargo:rustc-link-lib=LLVMCore");
+        println!("cargo:rustc-link-lib=LLVMBinaryFormat");
+        println!("cargo:rustc-link-lib=LLVMRemarks");
+        println!("cargo:rustc-link-lib=LLVMBitstreamReader");
+        println!("cargo:rustc-link-lib=LLVMMCParser");
+        println!("cargo:rustc-link-lib=LLVMObject");
+        println!("cargo:rustc-link-lib=LLVMTextAPI");
+        println!("cargo:rustc-link-lib=LLVMBitReader");
+        println!("cargo:rustc-link-lib=LLVMSupport");
+        println!("cargo:rustc-link-lib=zlib");
+    } else {
+        println!("cargo:rustc-link-lib=LLVM-10");
+        println!("cargo:rustc-link-lib=stdc++");
+    }
 
     println!("cargo:rerun-if-changed=libllvm-pdb-wrapper/wrapper.hpp");
     println!("cargo:rerun-if-changed=libllvm-pdb-wrapper/wrapper.cpp");
-    println!("cargo:rerun-if-changed={}", dst.display());
     let bindings = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
