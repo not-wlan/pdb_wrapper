@@ -10,7 +10,7 @@ repository = "https://github.com/not-wlan/pdb_wrapper"
 license = "Unlicense"
 
 [build-dependencies]
-cmake = "0.1"
+cmake = "0.1.45"
 bindgen = "0.55"
 
 [dependencies]
