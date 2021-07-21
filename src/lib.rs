@@ -123,10 +123,13 @@ impl Drop for PDB {
 }
 
 impl PDB {
-    pub fn new(is_64bit: bool) -> Result<Self, Error> {
+    pub fn new2(is_64bit: bool, age:u32, signature:u32, mut guid_sig:[u8; 16]) -> Result<Self, Error> {
         // I use integers to represent booleans on the FFI boundary.
         // Booleans *probably* work but I don't care to find out if this is true for every platform.
-        let handle = unsafe { PDB_File_Create(if is_64bit { 1i32 } else { 0i32 }) };
+        let handle = unsafe {
+            let bitsize = if is_64bit { 1i32 } else { 0i32 };
+            PDB_File_Create2(bitsize, age, signature, guid_sig.as_mut_ptr())
+        };
 
         if handle.is_null() {
             return Err(Error::LLVMError);
@@ -137,7 +140,23 @@ impl PDB {
             types: HashMap::new(),
         })
     }
+    pub fn new(is_64bit: bool) -> Result<Self, Error> {
+        // I use integers to represent booleans on the FFI boundary.
+        // Booleans *probably* work but I don't care to find out if this is true for every platform.
+        let handle = unsafe {
+            let bitsize = if is_64bit { 1i32 } else { 0i32 };
+            PDB_File_Create(bitsize)
+        };
 
+        if handle.is_null() {
+            return Err(Error::LLVMError);
+        }
+
+        Ok(PDB {
+            handle,
+            types: HashMap::new(),
+        })
+    }
     pub fn insert_global(
         &mut self,
         name: &str,

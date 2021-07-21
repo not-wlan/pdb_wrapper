@@ -32,7 +32,7 @@ class pdb_file {
 public:
     pdb_file();
 
-    bool initialize(bool is_64bit = false);
+    bool initialize(bool is_64bit = false, uint32_t Age = 0,uint32_t Signature = 0,llvm::codeview::GUID OurGUID = llvm::codeview::GUID());
 
     void add_function_symbol(const char *name, uint16_t section_index, uint32_t section_offset);
 
@@ -67,6 +67,8 @@ public:
     std::unique_ptr<llvm::BumpPtrAllocator> m_allocator;
 
     void finalize_public_symbols();
+
+
 };
 
 pdb_file::pdb_file() {
@@ -79,7 +81,7 @@ pdb_file::pdb_file() {
 #endif
 }
 
-bool pdb_file::initialize(bool is_64bit) {
+bool pdb_file::initialize(bool is_64bit ,uint32_t Age,uint32_t Signature,llvm::codeview::GUID OurGuid) {
     if (m_pdb_builder->initialize(4096)) {
         return false;
     }
@@ -94,9 +96,11 @@ bool pdb_file::initialize(bool is_64bit) {
 
     // Add an Info stream.
     auto &InfoBuilder = m_pdb_builder->getInfoBuilder();
+    InfoBuilder.setAge(Age);
     InfoBuilder.setVersion(llvm::pdb::PdbRaw_ImplVer::PdbImplVC70);
     InfoBuilder.setHashPDBContentsToGUID(false);
-
+    InfoBuilder.setSignature(Signature);
+    InfoBuilder.setGuid(OurGuid);
     //Add an empty DBI stream.
     auto &DbiBuilder = m_pdb_builder->getDbiBuilder();
     DbiBuilder.setAge(InfoBuilder.getAge());
@@ -335,6 +339,18 @@ TypeIndex pdb_file::add_struct(const char *name, TypeIndex fields, uint16_t fiel
 EXPORT void *PDB_File_Create(int Is64Bit) {
     auto pdb = new pdb_file();
     if (!pdb->initialize(!!Is64Bit)) {
+        delete pdb;
+        return nullptr;
+    }
+    return pdb;
+}
+EXPORT void *PDB_File_Create2(int Is64Bit,uint32_t Age,uint32_t Signature,uint8_t * GUIDData) {
+    auto pdb = new pdb_file();
+    uint8_t myarray[16];
+    memcpy(myarray,GUIDData,16);
+    auto myguid = llvm::codeview::GUID();
+    memcpy(myguid.Guid,myarray,16);
+    if (!pdb->initialize(!!Is64Bit,Age,Signature,myguid)) {
         delete pdb;
         return nullptr;
     }

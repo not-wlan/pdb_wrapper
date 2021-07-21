@@ -25,6 +25,7 @@
 #endif
 
 EXPORT void* PDB_File_Create(int Is64Bit);
+EXPORT void *PDB_File_Create2(int Is64Bit,uint32_t Age,uint32_t Signature,uint8_t *GUIDData);
 EXPORT void PDB_File_Add_Function(void* Instance, const char* Name, uint16_t SectionIndex, uint32_t SectionOffset);
 EXPORT void PDB_File_Add_Global(void* Instance, const char* Name, uint16_t SectionIndex, uint32_t SectionOffset);
 EXPORT int PDB_File_Commit(void *Instance, const char* InputPath, const char* OutputPath);
