@@ -4,7 +4,10 @@ version = "0.1.0"
 authors = ["jan"]
 edition = "2018"
 build = "build.rs"
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Rust library to create fake PDBs. Very in-dev, API is likely to break a lot (not including the frequent LLVM API breakages...)"
+homepage = "https://github.com/not-wlan/pdb_wrapper"
+repository = "https://github.com/not-wlan/pdb_wrapper"
+license = "Unlicense"
 
 [build-dependencies]
 cmake = "0.1"
