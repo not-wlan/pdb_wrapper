@@ -123,7 +123,8 @@ impl Drop for PDB {
 }
 
 impl PDB {
-    pub fn new2(is_64bit: bool, age:u32, signature:u32, mut guid_sig:[u8; 16]) -> Result<Self, Error> {
+    #[cfg(llvm_13)]
+    pub fn new(is_64bit: bool, age:u32, signature:u32, mut guid_sig:[u8; 16]) -> Result<Self, Error> {
         // I use integers to represent booleans on the FFI boundary.
         // Booleans *probably* work but I don't care to find out if this is true for every platform.
         let handle = unsafe {
@@ -140,6 +141,7 @@ impl PDB {
             types: HashMap::new(),
         })
     }
+    #[cfg(not(llvm_13))]
     pub fn new(is_64bit: bool) -> Result<Self, Error> {
         // I use integers to represent booleans on the FFI boundary.
         // Booleans *probably* work but I don't care to find out if this is true for every platform.

@@ -4,7 +4,6 @@ use std::{env, path::PathBuf};
 fn main() {
     println!("Remember to set the LIBCLANG_PATH and/or LLVM_DIR if needed");
     if std::env::var_os("CARGO_FEATURE_LLVM_13").is_some() {
-        println!("specialbuold");
         let dst = Config::new("libllvm-pdb-wrapper")
             .define("LLVM_NEWER", "ON")
             .build();
