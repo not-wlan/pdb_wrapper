@@ -123,7 +123,7 @@ impl Drop for PDB {
 }
 
 impl PDB {
-    #[cfg(llvm_13)]
+    #[cfg(feature = "llvm_13")]
     pub fn new(is_64bit: bool, age:u32, signature:u32, mut guid_sig:[u8; 16]) -> Result<Self, Error> {
         // I use integers to represent booleans on the FFI boundary.
         // Booleans *probably* work but I don't care to find out if this is true for every platform.
@@ -141,7 +141,7 @@ impl PDB {
             types: HashMap::new(),
         })
     }
-    #[cfg(not(llvm_13))]
+    #[cfg(not(feature = "llvm_13"))]
     pub fn new(is_64bit: bool) -> Result<Self, Error> {
         // I use integers to represent booleans on the FFI boundary.
         // Booleans *probably* work but I don't care to find out if this is true for every platform.
