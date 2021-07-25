@@ -10,3 +10,4 @@ Rust library to create fake PDBs. Very in-dev, API is likely to break a lot (not
 ### LLVM Support
 
 - v0.1 supports LLVM 10
+- v0.2 supports LLVM 10 (feature `llvm_10`) and LLVM 13 (feature `llvm_13`)
