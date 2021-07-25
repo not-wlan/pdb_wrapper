@@ -24,7 +24,7 @@ fn version_specific_init() {
 
     // Get required libraries from `llvm-config`
     let result = Command::new(binary)
-        .arg("--libs")
+        .arg("--libnames")
         .arg("--ignore-libllvm")
         .arg("DebugInfoPDB")
         .output()
