@@ -1,6 +1,7 @@
 use cmake::Config;
-use std::{env, path::PathBuf, process::Command};
-use which::which;
+use std::{env, path::PathBuf};
+use std::process::Command;
+    use which::which;
 
 #[cfg(all(feature = "llvm_10", feature = "llvm_13"))]
 compile_error!("You may only enable one LLVM version");
@@ -11,12 +12,6 @@ const LLVM_VERSION: u32 = 10;
 #[cfg(feature = "llvm_13")]
 const LLVM_VERSION: u32 = 13;
 
-#[cfg(feature = "llvm_10")]
-fn version_specific_init() {
-    println!("cargo:rustc-link-lib=LLVM-10");
-}
-
-#[cfg(feature = "llvm_13")]
 fn version_specific_init() {
     // TODO: Does this work as expected on Windows?
     let binary = which("llvm-config")
@@ -25,25 +20,28 @@ fn version_specific_init() {
     // Get required libraries from `llvm-config`
     let result = Command::new(binary)
         .arg("--libnames")
-        .arg("--ignore-libllvm")
         .arg("DebugInfoPDB")
         .output()
         .expect("Failed to run `llvm-config`");
 
     let result = String::from_utf8(result.stdout).expect("Failed to parse `llvm-config` output!");
-    if cfg!(linux) {
+    if cfg!(unix) {
         result
             .trim()
-            .split(" ")
+            .replace(".a", "")
+            .replace(".so", "")
+            .split_whitespace()
             .map(|lib| lib.trim())
+            .filter_map(|lib| lib.strip_prefix("lib"))
             .filter(|lib| !lib.is_empty())
             .for_each(|lib| {
                 println!("cargo:rustc-link-lib={}", lib);
             });
     } else if cfg!(windows) {
         result
-            .trim().replace(".lib","")
-            .split(" ")
+            .trim()
+            .replace(".lib", "")
+            .split_whitespace()
             .map(|lib| lib.trim())
             .filter(|lib| !lib.is_empty())
             .for_each(|lib| {
@@ -58,6 +56,9 @@ fn main() {
     println!("cargo:rustc-link-search=native={}", dst.display());
     println!("cargo:rerun-if-changed={}", dst.display());
 
+    println!("cargo:rustc-link-lib=static=llvm-pdb-wrapper");
+    println!("cargo:rustc-link-lib=llvm-pdb-wrapper");
+
     version_specific_init();
 
     if cfg!(unix) {
@@ -67,8 +68,6 @@ fn main() {
     } else if cfg!(windows) {
         println!("cargo:rustc-link-lib=zlib");
     }
-    println!("cargo:rustc-link-lib=static=llvm-pdb-wrapper");
-    println!("cargo:rustc-link-lib=llvm-pdb-wrapper");
 
     println!("cargo:rerun-if-changed=libllvm-pdb-wrapper/wrapper.hpp");
     println!("cargo:rerun-if-changed=libllvm-pdb-wrapper/wrapper.cpp");
