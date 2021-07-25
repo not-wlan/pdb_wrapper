@@ -42,7 +42,6 @@ fn version_specific_init() {
         .for_each(|lib| {
             println!("cargo:rustc-link-lib={}", lib);
         });
-    println!("cargo:rustc-link-lib=zlib");
 }
 
 fn main() {
