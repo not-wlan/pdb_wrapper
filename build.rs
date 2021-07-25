@@ -15,7 +15,6 @@ const LLVM_VERSION: u32 = 13;
 #[cfg(feature = "llvm_10")]
 fn version_specific_init() {
     println!("cargo:rustc-link-lib=LLVM-10");
-    println!("cargo:rustc-link-lib=stdc++");
 }
 
 #[cfg(feature = "llvm_13")]
@@ -51,6 +50,7 @@ fn main() {
 
     version_specific_init();
 
+    println!("cargo:rustc-link-lib=stdc++");
     println!("cargo:rustc-link-lib=static=llvm-pdb-wrapper");
     println!("cargo:rustc-link-lib=llvm-pdb-wrapper");
 
