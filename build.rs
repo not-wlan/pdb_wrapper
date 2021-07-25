@@ -31,15 +31,26 @@ fn version_specific_init() {
         .expect("Failed to run `llvm-config`");
 
     let result = String::from_utf8(result.stdout).expect("Failed to parse `llvm-config` output!");
+    if cfg!(linux) {
+        result
+            .trim()
+            .split(" ")
+            .map(|lib| lib.trim())
+            .filter(|lib| !lib.is_empty())
+            .for_each(|lib| {
+                println!("cargo:rustc-link-lib={}", lib);
+            });
+    } else if cfg!(windows) {
+        result
+            .trim().replace(".lib","")
+            .split(" ")
+            .map(|lib| lib.trim())
+            .filter(|lib| !lib.is_empty())
+            .for_each(|lib| {
+                println!("cargo:rustc-link-lib={}", lib);
+            });
+    }
 
-    result
-        .trim()
-        .split("-l")
-        .map(|lib| lib.trim())
-        .filter(|lib| !lib.is_empty())
-        .for_each(|lib| {
-            println!("cargo:rustc-link-lib={}", lib);
-        });
 }
 
 fn main() {
@@ -53,9 +64,12 @@ fn main() {
         // TODO: Test if this is required on Windows too?
         println!("cargo:rustc-link-lib=ncurses");
     }
-
-    println!("cargo:rustc-link-lib=z");
-    println!("cargo:rustc-link-lib=stdc++");
+    if cfg!(linux) {
+        println!("cargo:rustc-link-lib=z");
+        println!("cargo:rustc-link-lib=stdc++");
+    } else if cfg!(windows) {
+        println!("cargo:rustc-link-lib=zlib");
+    }
     println!("cargo:rustc-link-lib=static=llvm-pdb-wrapper");
     println!("cargo:rustc-link-lib=llvm-pdb-wrapper");
 
