@@ -10,11 +10,16 @@ repository = "https://github.com/not-wlan/pdb_wrapper"
 license = "Unlicense"
 
 [build-dependencies]
-cmake = "0.1"
+cmake = "0.1.45"
 bindgen = "0.55"
+which = "4.1.0"
 
 [dependencies]
 snafu = "0.6.9"
 
 [dev-dependencies]
 pdb = "0.6"
+[features]
+default = ["llvm_13"]
+llvm_10 = []
+llvm_13 = []
