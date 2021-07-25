@@ -101,6 +101,7 @@ bool pdb_file::initialize(bool is_64bit ,uint32_t Age,uint32_t Signature,llvm::c
     InfoBuilder.setHashPDBContentsToGUID(false);
     InfoBuilder.setSignature(Signature);
     InfoBuilder.setGuid(OurGuid);
+    InfoBuilder.addFeature(llvm::pdb::PdbRaw_FeatureSig::VC140);
     //Add an empty DBI stream.
     auto &DbiBuilder = m_pdb_builder->getDbiBuilder();
     DbiBuilder.setAge(InfoBuilder.getAge());
