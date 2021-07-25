@@ -1,6 +1,5 @@
 use cmake::Config;
-use std::process::Command;
-use std::{env, path::PathBuf};
+use std::{env, path::PathBuf, process::Command};
 use which::which;
 
 #[cfg(all(feature = "llvm_10", feature = "llvm_13"))]
@@ -50,6 +49,12 @@ fn main() {
 
     version_specific_init();
 
+    if cfg!(unix) {
+        // TODO: Test if this is required on Windows too?
+        println!("cargo:rustc-link-lib=ncurses");
+    }
+
+    println!("cargo:rustc-link-lib=z");
     println!("cargo:rustc-link-lib=stdc++");
     println!("cargo:rustc-link-lib=static=llvm-pdb-wrapper");
     println!("cargo:rustc-link-lib=llvm-pdb-wrapper");
