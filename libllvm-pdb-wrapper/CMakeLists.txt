@@ -1,6 +1,5 @@
 cmake_minimum_required (VERSION 3.13)
 project(llvm-pdb-wrapper)
-option(LLVM_NEWER "handle newer llvm versions" OFF)
 
 find_package(LLVM REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
@@ -8,9 +7,6 @@ message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
-if(LLVM_NEWER)
-    add_definitions(-DLLVM_NEWER)
-endif()
 
 add_library(llvm-pdb-wrapper wrapper.cpp)
 target_link_libraries(llvm-pdb-wrapper ${llvm_libs})

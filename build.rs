@@ -1,48 +1,68 @@
 use cmake::Config;
+use std::process::Command;
 use std::{env, path::PathBuf};
+use which::which;
+
+#[cfg(all(feature = "llvm_10", feature = "llvm_13"))]
+compile_error!("You may only enable one LLVM version");
+
+#[cfg(feature = "llvm_10")]
+const LLVM_VERSION: u32 = 10;
+
+#[cfg(feature = "llvm_13")]
+const LLVM_VERSION: u32 = 13;
+
+#[cfg(feature = "llvm_10")]
+fn version_specific_init() {
+    println!("cargo:rustc-link-lib=LLVM-10");
+    println!("cargo:rustc-link-lib=stdc++");
+}
+
+#[cfg(feature = "llvm_13")]
+fn version_specific_init() {
+    // TODO: Does this work as expected on Windows?
+    let binary = which("llvm-config")
+        .expect("llvm-config was not found, please make sure that it's contained in your PATH!");
+
+    // Get required libraries from `llvm-config`
+    let result = Command::new(binary)
+        .arg("--libs")
+        .arg("--ignore-libllvm")
+        .arg("DebugInfoPDB")
+        .output()
+        .expect("Failed to run `llvm-config`");
+
+    let result = String::from_utf8(result.stdout).expect("Failed to parse `llvm-config` output!");
+
+    result
+        .trim()
+        .split("-l")
+        .map(|lib| lib.trim())
+        .filter(|lib| !lib.is_empty())
+        .for_each(|lib| {
+            println!("cargo:rustc-link-lib={}", lib);
+        });
+    println!("cargo:rustc-link-lib=zlib");
+}
 
 fn main() {
-    println!("Remember to set the LIBCLANG_PATH and/or LLVM_DIR if needed");
-    if std::env::var_os("CARGO_FEATURE_LLVM_13").is_some() {
-        let dst = Config::new("libllvm-pdb-wrapper")
-            .define("LLVM_NEWER", "ON")
-            .build();
-        println!("cargo:rustc-link-search=native={}", dst.display());
-        println!("cargo:rerun-if-changed={}", dst.display());
-    } else {
-        let dst = Config::new("libllvm-pdb-wrapper").build();
-        println!("cargo:rustc-link-search=native={}", dst.display());
-        println!("cargo:rerun-if-changed={}", dst.display());
-    }
+    let dst = Config::new("libllvm-pdb-wrapper").build();
+    println!("cargo:rustc-link-search=native={}", dst.display());
+    println!("cargo:rerun-if-changed={}", dst.display());
+
+    version_specific_init();
 
     println!("cargo:rustc-link-lib=static=llvm-pdb-wrapper");
     println!("cargo:rustc-link-lib=llvm-pdb-wrapper");
-    if std::env::var_os("CARGO_FEATURE_LLVM_13").is_some() {
-        println!("cargo:rustc-link-lib=LLVMDebugInfoCodeView");
-        println!("cargo:rustc-link-lib=LLVMDebugInfoPDB");
-        println!("cargo:rustc-link-lib=LLVMDebugInfoMSF");
-        println!("cargo:rustc-link-lib=LLVMMC");
-        println!("cargo:rustc-link-lib=LLVMCore");
-        println!("cargo:rustc-link-lib=LLVMBinaryFormat");
-        println!("cargo:rustc-link-lib=LLVMRemarks");
-        println!("cargo:rustc-link-lib=LLVMBitstreamReader");
-        println!("cargo:rustc-link-lib=LLVMMCParser");
-        println!("cargo:rustc-link-lib=LLVMObject");
-        println!("cargo:rustc-link-lib=LLVMTextAPI");
-        println!("cargo:rustc-link-lib=LLVMBitReader");
-        println!("cargo:rustc-link-lib=LLVMSupport");
-        println!("cargo:rustc-link-lib=zlib");
-    } else {
-        println!("cargo:rustc-link-lib=LLVM-10");
-        println!("cargo:rustc-link-lib=stdc++");
-    }
 
     println!("cargo:rerun-if-changed=libllvm-pdb-wrapper/wrapper.hpp");
     println!("cargo:rerun-if-changed=libllvm-pdb-wrapper/wrapper.cpp");
+
     let bindings = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
         .header("libllvm-pdb-wrapper/wrapper.hpp")
+        .clang_arg(format!("-DLLVM_VERSION_MAJOR={}", LLVM_VERSION))
         .whitelist_function("PDB_File_.*")
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.

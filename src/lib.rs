@@ -124,12 +124,17 @@ impl Drop for PDB {
 
 impl PDB {
     #[cfg(feature = "llvm_13")]
-    pub fn new(is_64bit: bool, age:u32, signature:u32, mut guid_sig:[u8; 16]) -> Result<Self, Error> {
+    pub fn new(
+        is_64bit: bool,
+        age: u32,
+        signature: u32,
+        guid_sig: [u8; 16],
+    ) -> Result<Self, Error> {
         // I use integers to represent booleans on the FFI boundary.
         // Booleans *probably* work but I don't care to find out if this is true for every platform.
         let handle = unsafe {
             let bitsize = if is_64bit { 1i32 } else { 0i32 };
-            PDB_File_Create2(bitsize, age, signature, guid_sig.as_mut_ptr())
+            PDB_File_Create(bitsize, age, signature, guid_sig.as_ptr())
         };
 
         if handle.is_null() {
@@ -168,7 +173,7 @@ impl PDB {
     ) -> Result<(), Error> {
         let name = CString::new(name)?;
         if let Some(ty) = ty {
-            let ty = self.get_or_create_type(&ty)?;
+            let ty = self.get_or_create_type(ty)?;
             unsafe {
                 PDB_File_Add_Typed_Global(
                     self.handle,
@@ -258,7 +263,7 @@ impl PDB {
             }
             PDBType::ConstantArray(array, size) => {
                 let ty = self.get_or_create_type(array.as_ref())?;
-                return Ok(unsafe { PDB_File_Add_Array(self.handle, ty, *size as u64) });
+                Ok(unsafe { PDB_File_Add_Array(self.handle, ty, *size as u64) })
             }
             PDBType::Function(func) => self.insert_function_metadata(func, ""),
             _ => Err(Error::BadType {

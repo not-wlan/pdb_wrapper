@@ -1,5 +1,3 @@
-#include "wrapper.hpp"
-
 #include <llvm/DebugInfo/MSF/MSFBuilder.h>
 #include <llvm/DebugInfo/PDB/Native/PDBFileBuilder.h>
 #include <llvm/DebugInfo/PDB/Native/DbiStreamBuilder.h>
@@ -16,6 +14,8 @@
 #include <llvm/DebugInfo/PDB/Native/TpiHashing.h>
 #include <llvm/DebugInfo/CodeView/SymbolSerializer.h>
 
+#include "wrapper.hpp"
+
 #include <memory>
 #include <vector>
 
@@ -25,7 +25,7 @@ class pdb_file {
     std::unique_ptr<llvm::pdb::PDBFileBuilder> m_pdb_builder;
     std::unique_ptr<AppendingTypeTableBuilder> m_type_builder;
     std::unique_ptr<AppendingTypeTableBuilder> m_id_builder;
-#ifdef LLVM_NEWER
+#if LLVM_VERSION_MAJOR > 10
     std::vector<llvm::pdb::BulkPublic> m_PublicsSyms;
 #endif
     bool m_64_bit{};
@@ -76,7 +76,7 @@ pdb_file::pdb_file() {
     m_pdb_builder = std::make_unique<llvm::pdb::PDBFileBuilder>(*m_allocator);
     m_type_builder = std::make_unique<AppendingTypeTableBuilder>(*m_allocator);
     m_id_builder = std::make_unique<AppendingTypeTableBuilder>(*m_allocator);
-#ifdef LLVM_NEWER
+#if LLVM_VERSION_MAJOR > 10
     m_PublicsSyms = std::vector<llvm::pdb::BulkPublic>();
 #endif
 }
@@ -145,7 +145,7 @@ bool pdb_file::commit(const char *InputPath, const char *OutputPath) {
     auto sections = llvm::ArrayRef<llvm::object::coff_section>(section_table, section_count);
 
     // Add Section Map stream.
-#ifdef LLVM_NEWER
+#if LLVM_VERSION_MAJOR > 10
     DbiBuilder.createSectionMap(sections);
 #else
     auto sectionMap = llvm::pdb::DbiStreamBuilder::createSectionMap(sections);
@@ -204,14 +204,14 @@ pdb_file::add_function_symbol(const char *name, uint16_t section_index, uint32_t
 
 void pdb_file::add_function_symbol(const char *name, uint16_t section_index, uint32_t section_offset) {
     auto &GsiBuilder = m_pdb_builder->getGsiBuilder();
-#ifdef LLVM_NEWER
+#if LLVM_VERSION_MAJOR > 10
     auto symbol = llvm::pdb::BulkPublic();
 #else
     auto symbol = PublicSym32(SymbolKind::S_PUB32);
 #endif
 
     symbol.Name = name;
-#ifdef LLVM_NEWER
+#if LLVM_VERSION_MAJOR > 10
     symbol.Flags |= static_cast<uint16_t>(PublicSymFlags::Function);
 #else
     symbol.Flags |= PublicSymFlags::Function;
@@ -219,7 +219,7 @@ void pdb_file::add_function_symbol(const char *name, uint16_t section_index, uin
 
     symbol.Segment = section_index;
     symbol.Offset = section_offset;
-#ifdef LLVM_NEWER
+#if LLVM_VERSION_MAJOR > 10
     m_PublicsSyms.push_back(symbol);
 #else
     GsiBuilder.addPublicSymbol(symbol);
@@ -246,7 +246,7 @@ void pdb_file::add_global_symbol(const char *name, uint16_t section_index, uint3
 
 void pdb_file::add_global_symbol(const char *name, uint16_t section_index, uint32_t section_offset) {
     auto &GsiBuilder = m_pdb_builder->getGsiBuilder();
-#ifdef LLVM_NEWER
+#if LLVM_VERSION_MAJOR > 10
     auto symbol = llvm::pdb::BulkPublic();
 #else
     auto symbol = PublicSym32(SymbolKind::S_PUB32);
@@ -254,7 +254,7 @@ void pdb_file::add_global_symbol(const char *name, uint16_t section_index, uint3
     symbol.Name = name;
     symbol.Segment = section_index;
     symbol.Offset = section_offset;
-#ifdef LLVM_NEWER
+#if LLVM_VERSION_MAJOR > 10
     symbol.Flags |= static_cast<uint16_t>(PublicSymFlags::Function | PublicSymFlags::Code);
     m_PublicsSyms.push_back(symbol);
 #else
@@ -262,12 +262,14 @@ void pdb_file::add_global_symbol(const char *name, uint16_t section_index, uint3
     GsiBuilder.addPublicSymbol(symbol);
 #endif
 }
-#ifdef LLVM_NEWER
+
+#if LLVM_VERSION_MAJOR > 10
 void pdb_file::finalize_public_symbols() {
     auto &GsiBuilder = m_pdb_builder->getGsiBuilder();
     GsiBuilder.addPublicSymbols(std::move(m_PublicsSyms));
 }
 #endif
+
 ContinuationRecordBuilder *pdb_file::create_field_list() {
     auto contBuilder = new ContinuationRecordBuilder();
     contBuilder->begin(ContinuationRecordKind::FieldList);
@@ -336,6 +338,19 @@ TypeIndex pdb_file::add_struct(const char *name, TypeIndex fields, uint16_t fiel
     return m_type_builder->writeLeafType(classRecord);
 }
 
+
+#if LLVM_VERSION_MAJOR > 10
+EXPORT void *PDB_File_Create(int Is64Bit,uint32_t Age,uint32_t Signature,uint8_t const* GUIDData) {
+    auto pdb = new pdb_file();
+    auto guid = llvm::codeview::GUID();
+    memcpy(guid.Guid, GUIDData, 16);
+    if (!pdb->initialize(!!Is64Bit,Age,Signature,guid)) {
+        delete pdb;
+        return nullptr;
+    }
+    return pdb;
+}
+#else
 EXPORT void *PDB_File_Create(int Is64Bit) {
     auto pdb = new pdb_file();
     if (!pdb->initialize(!!Is64Bit)) {
@@ -344,18 +359,7 @@ EXPORT void *PDB_File_Create(int Is64Bit) {
     }
     return pdb;
 }
-EXPORT void *PDB_File_Create2(int Is64Bit,uint32_t Age,uint32_t Signature,uint8_t * GUIDData) {
-    auto pdb = new pdb_file();
-    uint8_t myarray[16];
-    memcpy(myarray,GUIDData,16);
-    auto myguid = llvm::codeview::GUID();
-    memcpy(myguid.Guid,myarray,16);
-    if (!pdb->initialize(!!Is64Bit,Age,Signature,myguid)) {
-        delete pdb;
-        return nullptr;
-    }
-    return pdb;
-}
+#endif
 
 EXPORT void PDB_File_Add_Typed_Function(void *Instance, const char *Name, uint16_t SectionIndex, uint32_t SectionOffset,
                                         uint32_t Type) {
@@ -384,7 +388,7 @@ EXPORT void PDB_File_Destroy(void *Instance) {
 
 EXPORT int PDB_File_Commit(void *Instance, const char *InputPath, const char *OutputPath) {
     auto pdb = (pdb_file *) Instance;
-#ifdef NEWER_LLVM
+#if LLVM_VERSION_MAJOR > 10
     pdb->finalize_public_symbols();
 #endif
     return +pdb->commit(InputPath, OutputPath);
@@ -408,17 +412,13 @@ PDB_File_Field_List_Finalize(void *Instance, void *CRBInstance) {
     return pdb->finalize_field_list(crb).getIndex();
 }
 
-EXPORT uint32_t
-
-PDB_File_Create_Struct(void *Instance, const char *Name, uint32_t Fields, uint16_t FieldCount, uint64_t Size) {
+EXPORT uint32_t PDB_File_Create_Struct(void *Instance, const char *Name, uint32_t Fields, uint16_t FieldCount, uint64_t Size) {
     const auto type = TypeIndex{Fields};
     auto pdb = (pdb_file *) Instance;
     return pdb->add_struct(Name, type, FieldCount, Size).getIndex();
 }
 
-EXPORT uint32_t
-
-PDB_File_Add_Func_Data(void *Instance, const char *Name, uint32_t ReturnType, const uint32_t *Args,
+EXPORT uint32_t PDB_File_Add_Func_Data(void *Instance, const char *Name, uint32_t ReturnType, const uint32_t *Args,
                        const size_t ArgCount, uint8_t CConv, int IsConstructor) {
     auto pdb = (pdb_file *) Instance;
     const auto return_type = TypeIndex{ReturnType};
@@ -433,17 +433,13 @@ PDB_File_Add_Func_Data(void *Instance, const char *Name, uint32_t ReturnType, co
     return pdb->add_function_data(Name, return_type, types, (CallingConvention) CConv, !!IsConstructor).getIndex();
 }
 
-EXPORT uint32_t
-
-PDB_File_Add_Pointer(void *Instance, uint32_t Type) {
+EXPORT uint32_t PDB_File_Add_Pointer(void *Instance, uint32_t Type) {
     const auto type = TypeIndex{Type};
     auto pdb = (pdb_file *) Instance;
     return pdb->add_pointer(type).getIndex();
 }
 
-EXPORT uint32_t
-
-PDB_File_Add_Array(void *Instance, uint32_t Type, uint64_t Size) {
+EXPORT uint32_t PDB_File_Add_Array(void *Instance, uint32_t Type, uint64_t Size) {
     const auto type = TypeIndex{Type};
     auto pdb = (pdb_file *) Instance;
     return pdb->add_array_type(type, Size).getIndex();
