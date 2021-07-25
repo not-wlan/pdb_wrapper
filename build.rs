@@ -61,10 +61,7 @@ fn main() {
     version_specific_init();
 
     if cfg!(unix) {
-        // TODO: Test if this is required on Windows too?
         println!("cargo:rustc-link-lib=ncurses");
-    }
-    if cfg!(linux) {
         println!("cargo:rustc-link-lib=z");
         println!("cargo:rustc-link-lib=stdc++");
     } else if cfg!(windows) {
