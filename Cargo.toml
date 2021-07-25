@@ -1,6 +1,6 @@
 [package]
 name = "pdb_wrapper"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["jan"]
 edition = "2018"
 build = "build.rs"
@@ -19,6 +19,7 @@ snafu = "0.6.9"
 
 [dev-dependencies]
 pdb = "0.6"
+
 [features]
 default = ["llvm_13"]
 llvm_10 = []
