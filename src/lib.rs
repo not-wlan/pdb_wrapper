@@ -364,7 +364,11 @@ mod tests {
         basedir.push("test");
         basedir.push("HelloWorld.exe");
 
+        #[cfg(feature = "llvm_10")]
         let mut pdb = PDB::new(false).expect("Failed to create PDB instance.");
+        #[cfg(feature = "llvm_13")]
+        let mut pdb = PDB::new(false, 1, 0, [0u8; 16]).expect("Failed to create PDB instance.");
+
         pdb.insert_global("TestSymbol", 1, 0x1337, None)
             .expect("Failed to add symbol.");
 
