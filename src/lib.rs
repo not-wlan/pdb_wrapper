@@ -308,20 +308,36 @@ impl PDB {
         })
     }
 
+    fn build_field_entry(&mut self, field: &StructField) -> Result<(u32, CString), Error> {
+        Ok((
+            self.get_or_create_type(&field.ty)?,
+            CString::new(field.name.as_str())?,
+        ))
+    }
+
     pub fn insert_struct(
         &mut self,
         name: &str,
         fields: &[StructField],
         size: u64,
     ) -> Result<(), Error> {
-        let field_list = unsafe { PDB_File_Field_List_Create() };
         let raw_name = CString::new(name)?;
 
         std::io::stdout().flush().unwrap();
+
+        let field_list = unsafe { PDB_File_Field_List_Create() };
+
         for field in fields {
-            let ty = self.get_or_create_type(&field.ty)?;
-            let raw_name = CString::new(field.name.as_str())?;
-            unsafe { PDB_File_Field_List_Add(field_list, ty, field.offset, raw_name.as_ptr()) };
+            match self.build_field_entry(&field) {
+                Ok((ty, raw_name)) => unsafe {
+                    PDB_File_Field_List_Add(field_list, ty, field.offset, raw_name.as_ptr())
+                },
+                Err(e) => {
+                    // Clean up the memory we allocated earlier
+                    unsafe { PDB_File_Field_List_Destroy(field_list) };
+                    return Err(e);
+                }
+            }
         }
 
         let ty = unsafe { PDB_File_Field_List_Finalize(self.handle, field_list) };

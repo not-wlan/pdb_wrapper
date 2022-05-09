@@ -1,6 +1,6 @@
 [package]
 name = "pdb_wrapper"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["jan"]
 edition = "2018"
 build = "build.rs"

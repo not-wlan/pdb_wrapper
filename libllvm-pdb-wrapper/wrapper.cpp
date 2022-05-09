@@ -43,6 +43,7 @@ public:
 
 
     static ContinuationRecordBuilder *create_field_list();
+    static void delete_field_list(ContinuationRecordBuilder * contBuilder);
 
 
     TypeIndex finalize_field_list(ContinuationRecordBuilder *cbr);
@@ -270,6 +271,10 @@ void pdb_file::finalize_public_symbols() {
 }
 #endif
 
+void pdb_file::delete_field_list(ContinuationRecordBuilder * contBuilder) {
+    delete contBuilder;
+}
+
 ContinuationRecordBuilder *pdb_file::create_field_list() {
     auto contBuilder = new ContinuationRecordBuilder();
     contBuilder->begin(ContinuationRecordKind::FieldList);
@@ -392,6 +397,10 @@ EXPORT int PDB_File_Commit(void *Instance, const char *InputPath, const char *Ou
     pdb->finalize_public_symbols();
 #endif
     return +pdb->commit(InputPath, OutputPath);
+}
+
+EXPORT void PDB_File_Field_List_Destroy(void* Builder) {
+    return pdb_file::delete_field_list((ContinuationRecordBuilder*)Builder);
 }
 
 EXPORT void *PDB_File_Field_List_Create() {

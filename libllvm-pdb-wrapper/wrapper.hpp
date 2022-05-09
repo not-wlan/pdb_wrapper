@@ -36,6 +36,7 @@ EXPORT int PDB_File_Commit(void *Instance, const char* InputPath, const char* Ou
 EXPORT void PDB_File_Destroy(void* Instance);
 EXPORT void* PDB_File_Field_List_Create();
 EXPORT void PDB_File_Field_List_Add(void* CRBInstance, uint32_t Type, uint64_t Offset, const char* Name);
+EXPORT void PDB_File_Field_List_Destroy(void* Builder);
 EXPORT uint32_t PDB_File_Field_List_Finalize(void* Instance, void* CRBInstance);
 EXPORT uint32_t PDB_File_Create_Struct(void *Instance, const char *Name, uint32_t Fields, uint16_t FieldCount, uint64_t Size);
 EXPORT uint32_t PDB_File_Add_Func_Data(void* Instance, const char* Name, uint32_t ReturnType, const uint32_t* Args, size_t ArgCount, uint8_t CConv, int IsConstructor);
